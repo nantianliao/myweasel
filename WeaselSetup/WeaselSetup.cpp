@@ -4,6 +4,7 @@
 #include "stdafx.h"
 
 #include "resource.h"
+#include "WeaselUtility.h"
 #include <thread>
 
 #include "InstallOptionsDlg.h"
@@ -27,17 +28,8 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
   hRes = _Module.Init(NULL, hInstance);
   ATLASSERT(SUCCEEDED(hRes));
 
-  LCID lcid = GetUserDefaultLCID();
-  LANGID langId;
-  if (lcid == 2052 || lcid == 3072 || lcid == 4100) {
-    langId = SetThreadUILanguage(
-        MAKELANGID(LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED));
-  } else if (lcid == 1028 || lcid == 3076 || lcid == 5124) {
-    langId = SetThreadUILanguage(
-        MAKELANGID(LANG_CHINESE, SUBLANG_CHINESE_TRADITIONAL));
-  } else {
-    langId = SetThreadUILanguage(MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US));
-  }
+  LANGID langId = get_language_id();
+  SetThreadUILanguage(langId);
   SetThreadLocale(langId);
 
   int nRet = Run(lpstrCmdLine);
@@ -158,6 +150,26 @@ static int Run(LPTSTR lpCmdLine) {
   bool uninstalling = !wcscmp(L"/u", lpCmdLine);
   if (uninstalling)
     return uninstall(silent);
+
+  auto setLanguage = [](const wchar_t* language) {
+    const WCHAR KEY[] = L"Software\\Rime\\Weasel";
+    HKEY hKey;
+    LSTATUS ret = RegOpenKey(HKEY_CURRENT_USER, KEY, &hKey);
+    if (ret == ERROR_SUCCESS) {
+      ret = RegSetValueEx(hKey, L"Language", 0, REG_SZ, (const BYTE*)language,
+                          (wcslen(language) + 1) * sizeof(wchar_t));
+      RegCloseKey(hKey);
+    }
+    return ret;
+  };
+
+  if (!wcscmp(L"/ls", lpCmdLine)) {
+    return setLanguage(L"chs");
+  } else if (!wcscmp(L"/lt", lpCmdLine)) {
+    return setLanguage(L"cht");
+  } else if (!wcscmp(L"/le", lpCmdLine)) {
+    return setLanguage(L"eng");
+  }
 
   bool hans = !wcscmp(L"/s", lpCmdLine);
   if (hans)
